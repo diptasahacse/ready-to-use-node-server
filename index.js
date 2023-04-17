@@ -1,10 +1,10 @@
 const express = require("express");
 const mongodb = require("mongodb");
+const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const cors = require("cors");
+const bcrypt = require("bcrypt");
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -13,32 +13,16 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONGO_PASSWORD}@cluster0.paph0zm.mongodb.net/?retryWrites=true&w=majority`;
+const mongoUrl = `mongodb+srv://${process.env.MONGO_USERNAME}:${process.env.MONGO_PASSWORD}@cluster0.paph0zm.mongodb.net/?retryWrites=true&w=majority`;
 
-const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  },
-});
-
-// Start
-const run = async () => {
-  try {
-    await client.connect();
-    const blogsCollection = client.db("blog-cms").collection("blogs");
-
-    app.get("/blogs", async (req, res) => {
-      const query = {};
-      const blogArray = await blogsCollection.find(query).toArray();
-
-      res.send(blogArray);
-    });
-  } finally {
-  }
-};
-run().catch(console.dir);
+mongoose
+  .connect(mongoUrl)
+  .then(() => {
+    console.log("Connected to the database");
+  })
+  .catch((error) => {
+    console.log(error);
+  });
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -47,3 +31,32 @@ app.get("/", (req, res) => {
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);
 });
+
+require("./schema/userSchema");
+
+const User = mongoose.model("UserInfo");
+
+app.post("/register", async (req, res) => {
+  const { email, phone, fullName, password } = req.body;
+  const encryptedPassword = await bcrypt.hash(password, 10);
+
+  try {
+    const oldUser = await User.findOne({ email });
+    if (oldUser) {
+      return res.send({ status: false, message: "User already exist" });
+    }
+
+    await User.create({
+      email,
+      phone,
+      fullName,
+      password: encryptedPassword,
+    });
+    res.send({ status: true, message: "User successfully registered" });
+  } catch (error) {
+    res.send({ status: false, message: error.message });
+  }
+});
+
+
+
